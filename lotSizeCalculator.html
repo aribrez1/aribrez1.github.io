@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Risk Calculator</title>
+    <style>
+        /* Modern dark theme styling */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+            background-color: #2b2b2b;
+            color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .main-container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .container, .table-container {
+            flex: 1;
+            padding: 20px;
+            background: #3a3a3a;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        h1, h2 {
+            margin-top: 0;
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #e0e0e0;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #777;
+            border-radius: 4px;
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+            box-sizing: border-box;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #0088ff;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #ffffff;
+            color: #2b2b2b;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #e0e0e0;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            font-size: 16px;
+            background-color: #4a4a4a;
+            border-radius: 4px;
+            display: none;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #777;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .info-row {
+            color: #0088ff;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="container">
+            <h1>Trading Risk Calculator</h1>
+            <form id="risk-calculator-form">
+                <div class="form-group">
+                    <label for="account-size">Account Size (USD):</label>
+                    <input type="number" id="account-size" name="account-size" min="0" step="0.01">
+                </div>
+
+                <div class="form-group">
+                    <label for="risk-type">Risk Type:</label>
+                    <select id="risk-type" name="risk-type">
+                        <option value="percentage">Percentage</option>
+                        <option value="usd">USD</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="risk-percentage-group">
+                    <label for="risk-percentage">Risk in Percentage (%):</label>
+                    <input type="number" id="risk-percentage" name="risk-percentage" min="0" max="100" step="0.01">
+                    <div class="info-row">Recommended: 1-2% per trade</div>
+                </div>
+
+                <div class="form-group hidden" id="risk-usd-group">
+                    <label for="risk-usd">Risk in USD ($):</label>
+                    <input type="number" id="risk-usd" name="risk-usd" min="0" step="0.01">
+                </div>
+
+                <div class="form-group">
+                    <label for="instrument">Instrument:</label>
+                    <select id="instrument" name="instrument">
+                        <option value="XAUUSD">XAUUSD (Gold)</option>
+                        <option value="BTCUSD">BTCUSD (Bitcoin)</option>
+                        <option value="US30">US30 (Dow Jones)</option>
+                        <option value="US100">US100 (Nasdaq)</option>
+                        <option value="SPX500">SPX500 (S&P 500)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="stop-loss">Stop Loss Size (points):</label>
+                    <input type="number" id="stop-loss" name="stop-loss" min="0" step="0.01">
+                    <div class="info-row">Enter the difference between entry and stop loss</div>
+                </div>
+
+                <button type="button" onclick="calculateLotSize()">Calculate</button>
+            </form>
+            <div class="result" id="result"></div>
+        </div>
+
+        <div class="table-container">
+            <h2>Instrument Specifications</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Instrument</th>
+                        <th>Contract Size ($)</th>
+                    </tr>
+                </thead>
+                <tbody id="specs-table-body"></tbody>
+            </table>
+            <button id="edit-specs" onclick="toggleEditMode()">Edit Specifications</button>
+            <button id="save-specs" onclick="saveSpecs()" class="hidden">Save Changes</button>
+        </div>
+    </div>
+
+    <script>
+        // Define instrument specifications with contract sizes
+        // Contract size represents both the cost per lot and point value multiplier
+        const instrumentSpecs = {
+            'XAUUSD': {
+                contractSize: 10    // $10 per point for 1.00 lot
+            },
+            'BTCUSD': {
+                contractSize: 1     // $1 per point for 1.00 lot
+            },
+            'US30': {
+                contractSize: 1     // $1 per point for 1.00 lot
+            },
+            'US100': {
+                contractSize: 1     // $1 per point for 1.00 lot
+            },
+            'SPX500': {
+                contractSize: 1     // $1 per point for 1.00 lot
+            }
+        };
+
+        let editMode = false;
+
+        // Populate the specifications table
+        function populateSpecsTable() {
+            const tbody = document.getElementById('specs-table-body');
+            tbody.innerHTML = '';
+
+            Object.entries(instrumentSpecs).forEach(([instrument, specs]) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${instrument}</td>
+                    <td>
+                        <input type="number"
+                               id="${instrument}-size"
+                               value="${specs.contractSize}"
+                               ${editMode ? '' : 'readonly'}
+                               step="0.01"
+                               min="0.01">
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Calculate the position size
+        function calculateLotSize() {
+            // Get basic inputs
+            const accountSize = parseFloat(document.getElementById('account-size').value);
+            const riskType = document.getElementById('risk-type').value;
+            const instrument = document.getElementById('instrument').value;
+            const stopLoss = parseFloat(document.getElementById('stop-loss').value);
+
+            // Input validation
+            if (!accountSize || !stopLoss || stopLoss <= 0) {
+                alert('Please fill in all required fields with valid values');
+                return;
+            }
+
+            // Calculate risk amount in USD
+            let riskUSD;
+            if (riskType === 'percentage') {
+                const riskPercentage = parseFloat(document.getElementById('risk-percentage').value);
+                if (!riskPercentage || riskPercentage <= 0) {
+                    alert('Please enter a valid risk percentage');
+                    return;
+                }
+                riskUSD = (accountSize * riskPercentage) / 100;
+            } else {
+                riskUSD = parseFloat(document.getElementById('risk-usd').value);
+                if (!riskUSD || riskUSD <= 0) {
+                    alert('Please enter a valid risk amount in USD');
+                    return;
+                }
+            }
+
+            // Get instrument specifications
+            const specs = instrumentSpecs[instrument];
+
+            // Calculate tick value (SL points * contract size)
+            const tickValue = stopLoss * specs.contractSize;
+
+            // Calculate maximum lot size (riskable USD / tick value)
+            const maxLotSize = riskUSD / tickValue;
+
+            // Display results
+            const result = document.getElementById('result');
+            result.style.display = 'block';
+            result.innerHTML = `
+                <strong>Analysis:</strong><br>
+                Risk Amount: $${riskUSD.toFixed(2)}<br>
+                Risk Percentage: ${((riskUSD / accountSize) * 100).toFixed(2)}%<br>
+                Stop Loss Points: ${stopLoss}<br>
+                Contract Size: $${specs.contractSize} per point<br>
+                Tick Value: $${tickValue.toFixed(2)}<br>
+                <strong>Maximum Lot Size: ${maxLotSize.toFixed(3)} lots</strong>
+            `;
+        }
+
+        // Toggle edit mode for specifications
+        function toggleEditMode() {
+            editMode = !editMode;
+            document.getElementById('edit-specs').textContent = editMode ? 'Cancel' : 'Edit Specifications';
+            document.getElementById('save-specs').classList.toggle('hidden');
+            populateSpecsTable();
+        }
+
+        // Save updated specifications
+        function saveSpecs() {
+            Object.keys(instrumentSpecs).forEach(instrument => {
+                const contractSize = parseFloat(document.getElementById(`${instrument}-size`).value);
+
+                if (contractSize <= 0) {
+                    alert(`Invalid contract size for ${instrument}`);
+                    return;
+                }
+
+                instrumentSpecs[instrument] = {
+                    contractSize: contractSize
+                };
+            });
+            toggleEditMode();
+        }
+
+        // Handle risk type change
+        document.getElementById('risk-type').addEventListener('change', function() {
+            document.getElementById('risk-percentage-group').classList.toggle('hidden', this.value !== 'percentage');
+            document.getElementById('risk-usd-group').classList.toggle('hidden', this.value !== 'usd');
+        });
+
+        // Initialize the table
+        populateSpecsTable();
+    </script>
+</body>
+</html>
